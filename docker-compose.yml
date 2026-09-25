@@ -1,0 +1,69 @@
+services:
+  # ASP.NET Core API. Not reached directly by the browser: nginx (angular-app) proxies /api/* to it.
+  web:
+    build:
+      context: ./MoodTrackerProject
+      dockerfile: Dockerfile
+    container_name: moodtracker-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__MySQLConnectionString=Server=mysql-db;Port=3306;Database=moodtrackerdb;Uid=app;Pwd=password
+      - TeamClock__TimeZone=Australia/Melbourne
+      # Deliberately non-secret local default. See README "Admin access".
+      - Admin__Password=change-me-locally
+      - DataProtection__KeysPath=/keys
+    volumes:
+      - dp-keys:/keys
+    ports:
+      - "8080:8080"   # Exposed for direct API checks (curl, .http file); the app itself uses the proxy.
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - aspnetcore-mysql-network
+
+  # Angular bundle served by nginx, which also proxies /api to the backend so the app is one origin.
+  angular-app:
+    build:
+      context: ./Client/web-client
+      dockerfile: Dockerfile
+    container_name: moodtracker-client
+    ports:
+      - "4200:80"
+    depends_on:
+      - web
+    networks:
+      - aspnetcore-mysql-network
+
+  mysql-db:
+    image: mysql:8.4.3  # 8.4 because support for mysql_native_password has been removed in 9.*
+    container_name: mysql-container
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: moodtrackerdb
+      MYSQL_USER: app
+      MYSQL_PASSWORD: password
+      MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
+    command: "--mysql-native-password=ON"
+    # depends_on alone only waits for the container; this waits for MySQL to accept connections (T4).
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uapp", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - aspnetcore-mysql-network
+
+volumes:
+  mysql-data:
+  dp-keys:
+
+networks:
+  aspnetcore-mysql-network:
+    driver: bridge

@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood Tracker Data Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F5F5F9; --surface:#FFFFFF; --surface-2:#ECEDF3;
+  --ink:#1A1B23; --ink-2:#4B4D5C; --ink-3:#7C7F91;
+  --rule:#DCDEE8; --rule-strong:#C3C6D4;
+  --accent:#3E3894; --accent-2:#6A62C9; --accent-soft:#E9E8F7;
+  --mood-1:#B0463A; --mood-2:#BF8526; --mood-3:#5B8C4F; --mood-4:#237F6F;
+  --err:#B0463A; --err-soft:#F8E9E7; --warn:#9A6414; --warn-soft:#FBF2DF; --ok:#237F6F; --ok-soft:#E3F2EE;
+  --shadow:0 1px 2px rgba(26,27,35,.05), 0 8px 24px -16px rgba(26,27,35,.28);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101117; --surface:#191B22; --surface-2:#21232C;
+    --ink:#E9EAF1; --ink-2:#B3B6C4; --ink-3:#83879A;
+    --rule:#2C2F3A; --rule-strong:#3D4150;
+    --accent:#A9A2FF; --accent-2:#8079E0; --accent-soft:#24234A;
+    --mood-1:#E0786A; --mood-2:#DFAA55; --mood-3:#8DBA7C; --mood-4:#4FB7A3;
+    --err:#E0786A; --err-soft:#2E1B19; --warn:#E0AE5E; --warn-soft:#2A2213; --ok:#4FB7A3; --ok-soft:#14302B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101117; --surface:#191B22; --surface-2:#21232C;
+  --ink:#E9EAF1; --ink-2:#B3B6C4; --ink-3:#83879A;
+  --rule:#2C2F3A; --rule-strong:#3D4150;
+  --accent:#A9A2FF; --accent-2:#8079E0; --accent-soft:#24234A;
+  --mood-1:#E0786A; --mood-2:#DFAA55; --mood-3:#8DBA7C; --mood-4:#4FB7A3;
+  --err:#E0786A; --err-soft:#2E1B19; --warn:#E0AE5E; --warn-soft:#2A2213; --ok:#4FB7A3; --ok-soft:#14302B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{ margin:0; background:var(--ground); color:var(--ink); font-family:"Source Serif 4",Georgia,serif; font-size:16px; line-height:1.6 }
+.shell{ max-width:1240px; margin:0 auto; padding-inline:20px; padding-block:0 56px }
+
+.masthead{ padding-block:44px 24px; border-bottom:2px solid var(--ink); margin-bottom:24px }
+.eyebrow{ font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 14px }
+h1{ font-family:"Archivo",Arial,sans-serif; font-weight:700; font-size:clamp(2rem,5.5vw,3rem); line-height:1.04; letter-spacing:-.028em; margin:0 0 12px; text-wrap:balance }
+.standfirst{ font-size:1.08rem; color:var(--ink-2); max-width:64ch; margin:0 0 18px }
+.facts{ display:flex; flex-wrap:wrap; gap:8px 28px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-3) }
+.facts b{ color:var(--ink); font-weight:500 }
+
+/* controls */
+.controls{ display:flex; flex-wrap:wrap; align-items:center; gap:14px 20px; margin:0 0 18px }
+.tabs{ display:flex; gap:4px; background:var(--surface-2); padding:4px; border-radius:10px }
+.tab{ font-family:"Archivo",Arial,sans-serif; font-weight:600; font-size:13.5px; padding:8px 14px; border-radius:7px; border:0; background:transparent; color:var(--ink-2); cursor:pointer }
+.tab[aria-selected="true"]{ background:var(--surface); color:var(--accent); box-shadow:var(--shadow) }
+.tab:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+.stepnav{ display:flex; align-items:center; gap:10px; margin-left:auto }
+.nb{ font-family:"Archivo",Arial,sans-serif; font-weight:600; font-size:13.5px; padding:8px 14px; border-radius:8px; border:1.5px solid var(--rule-strong); background:var(--surface); color:var(--ink); cursor:pointer }
+.nb:disabled{ opacity:.4; cursor:default }
+.nb:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+.stepcount{ font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-3); min-width:9ch; text-align:center }
+
+.steplist{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 22px; padding:0; list-style:none }
+.steplist button{ font-family:"Archivo",Arial,sans-serif; font-size:12.5px; padding:6px 10px; border-radius:999px; border:1.5px solid var(--rule); background:var(--surface); color:var(--ink-2); cursor:pointer }
+.steplist button[aria-current="step"]{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600 }
+.steplist button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+.steplist .n{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; margin-right:6px; opacity:.7 }
+
+/* step header */
+.stephead{ margin:0 0 18px }
+.stephead h2{ font-family:"Archivo",Arial,sans-serif; font-weight:600; font-size:clamp(1.3rem,3vw,1.7rem); letter-spacing:-.02em; margin:0 0 6px; text-wrap:balance }
+.stephead p{ margin:0; color:var(--ink-2); max-width:70ch }
+
+/* layout */
+.sim{ display:grid; grid-template-columns:1fr; gap:22px; align-items:start }
+.sim > *{ min-width:0 }
+@media (min-width:960px){ .sim{ grid-template-columns:minmax(300px,380px) minmax(0,1fr) } }
+.pane h3{ font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); margin:0 0 10px }
+@media (min-width:960px){ .pane.ui{ position:sticky; top:16px } }
+
+/* pipeline */
+.pipe{ list-style:none; margin:0; padding:0; display:grid; gap:8px }
+.stage{ border:1.5px solid var(--rule); border-radius:10px; background:var(--surface); overflow:hidden; opacity:.55; transition:opacity .15s }
+.stage.active{ opacity:1; border-color:var(--accent-2) }
+.stage.holds{ opacity:1; border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent) }
+.stage.err.active{ border-color:var(--err) }
+.stage.warn.active{ border-color:var(--warn) }
+.st-head{ display:flex; align-items:baseline; gap:10px; padding:8px 12px; border-bottom:1px solid var(--rule); background:var(--surface-2); flex-wrap:wrap }
+.st-label{ font-family:"Archivo",Arial,sans-serif; font-weight:600; font-size:13px }
+.st-sub{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-3) }
+.st-mark{ margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); background:var(--accent-soft); padding:2px 8px; border-radius:999px; display:none }
+.stage.holds .st-mark{ display:inline-block }
+.stage.err .st-mark{ color:var(--err); background:var(--err-soft) }
+.st-body{ margin:0; padding:10px 12px; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:12px; line-height:1.55; color:var(--ink-2); white-space:pre-wrap; overflow-wrap:anywhere }
+.st-body .hi{ color:var(--accent); font-weight:500 }
+.st-body .bad{ color:var(--err); font-weight:500 }
+.st-body .good{ color:var(--ok); font-weight:500 }
+.st-body .dim{ color:var(--ink-3) }
+.st-body.empty{ color:var(--ink-3); font-style:italic; font-family:"Source Serif 4",Georgia,serif; font-size:13px }
+
+/* db table */
+.dbwrap{ overflow-x:auto }
+.db{ width:100%; border-collapse:collapse; font-family:"IBM Plex Mono",monospace; font-size:11.5px; min-width:640px }
+.db th{ text-align:left; font-family:"Archivo",Arial,sans-serif; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); padding:7px 10px; border-bottom:1px solid var(--rule-strong); white-space:nowrap }
+.db td{ padding:7px 10px; border-bottom:1px solid var(--rule); color:var(--ink-2); vertical-align:top; white-space:nowrap }
+.db td.c{ white-space:normal; min-width:180px; font-family:"Source Serif 4",Georgia,serif; font-size:12.5px }
+.db tr.hit td{ background:var(--accent-soft); color:var(--ink) }
+.db tr.new td{ background:var(--ok-soft) }
+.db tr:last-child td{ border-bottom:0 }
+.db .r1{ color:var(--mood-1) } .db .r2{ color:var(--mood-2) } .db .r3{ color:var(--mood-3) } .db .r4{ color:var(--mood-4) }
+.dbnote{ padding:8px 12px; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3); border-top:1px dashed var(--rule) }
+.dbnote.bad{ color:var(--err) } .dbnote.good{ color:var(--ok) }
+
+/* where-is-it summary */
+.where{ margin:20px 0 0; border-left:3px solid var(--accent); background:var(--surface); padding:14px 18px; border-radius:0 8px 8px 0; box-shadow:var(--shadow) }
+.where .tag{ display:block; font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:6px }
+.where p{ margin:0; color:var(--ink-2) }
+
+.legend{ display:flex; flex-wrap:wrap; gap:10px 22px; margin:14px 0 0; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3) }
+.legend span::before{ content:""; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; border:1.5px solid var(--rule) }
+.legend .l-active::before{ border-color:var(--accent-2) }
+.legend .l-holds::before{ border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent) }
+.legend .l-err::before{ border-color:var(--err) }
+
+/* ---- UI mock ---- */
+.wire{ background:var(--surface); border:1px solid var(--rule); border-radius:12px; overflow:hidden; box-shadow:var(--shadow) }
+.wire-bar{ display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid var(--rule); background:var(--surface-2) }
+.dot{ width:8px; height:8px; border-radius:50%; background:var(--rule-strong) }
+.wire-url{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-3); margin-left:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.wire-body{ padding:20px 18px 22px; font-family:"Archivo",Arial,sans-serif; min-height:300px }
+.wire-label{ font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); padding:9px 14px; border-top:1px dashed var(--rule) }
+.mt-h{ font-weight:600; font-size:1.15rem; letter-spacing:-.015em; margin:0 0 4px }
+.mt-sub{ font-size:12.5px; color:var(--ink-3); margin:0 0 16px }
+.opts{ display:grid; gap:8px; margin-bottom:16px }
+.opt{ display:flex; align-items:center; gap:11px; border:1.5px solid var(--rule); border-radius:10px; padding:10px 13px; font-size:14px; background:var(--surface) }
+.opt .face{ flex:none; width:22px; height:22px }
+.face.m1{ color:var(--mood-1) } .face.m2{ color:var(--mood-2) } .face.m3{ color:var(--mood-3) } .face.m4{ color:var(--mood-4) }
+.opt.sel{ border-color:var(--accent); background:var(--accent-soft); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent) }
+.opt .check{ margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--accent) }
+.ta{ border:1.5px solid var(--rule); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--ink-3); min-height:58px; background:var(--surface) }
+.ta.filled{ color:var(--ink-2) }
+.counter{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-3); margin:6px 2px 14px; font-variant-numeric:tabular-nums }
+.btn{ display:block; width:100%; text-align:center; border-radius:10px; padding:11px 16px; font-weight:600; font-size:14px; border:1.5px solid transparent }
+.btn.primary{ background:var(--accent); color:#fff }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .btn.primary{ color:#14131F } }
+:root[data-theme="dark"] .btn.primary{ color:#14131F }
+.btn.disabled{ background:var(--surface-2); color:var(--ink-3); border-color:var(--rule) }
+.alert{ display:flex; gap:10px; border:1.5px solid var(--err); background:var(--err-soft); color:var(--ink); border-radius:10px; padding:10px 12px; font-size:13px; line-height:1.45; margin-bottom:14px }
+.alert .bang{ color:var(--err); font-weight:700 }
+.locked{ border:1.5px solid var(--rule); border-radius:12px; padding:14px; background:var(--surface-2) }
+.chip{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500; padding:3px 9px 3px 6px; border-radius:999px; border:1px solid currentColor }
+.chip .face{ width:15px; height:15px }
+.chip.m1{ color:var(--mood-1) } .chip.m2{ color:var(--mood-2) } .chip.m3{ color:var(--mood-3) } .chip.m4{ color:var(--mood-4) }
+.chip span{ color:var(--ink) }
+.locked .qt{ font-family:"Source Serif 4",Georgia,serif; font-size:14px; color:var(--ink-2); margin:10px 0 8px; font-style:italic }
+.locked .stamp{ font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3) }
+.hintline{ font-size:12.5px; color:var(--ink-3); margin-top:12px; text-align:center }
+.skel{ height:14px; border-radius:6px; background:var(--surface-2); margin-bottom:10px }
+.skel.w60{ width:60% } .skel.w40{ width:40% } .skel.tall{ height:44px }
+.field{ border:1.5px solid var(--rule); border-radius:10px; padding:10px 12px; font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--ink-2); margin-bottom:10px; background:var(--surface) }
+.field.err{ border-color:var(--err) }
+.small{ font-size:12px; color:var(--ink-3); margin:0 0 12px }
+.admin-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px }
+.minwrap{ overflow-x:auto; border:1px solid var(--rule); border-radius:10px }
+.mini{ width:100%; border-collapse:collapse; font-size:12px; min-width:360px }
+.mini th{ text-align:left; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); padding:6px 8px; border-bottom:1px solid var(--rule-strong); white-space:nowrap }
+.mini td{ padding:7px 8px; border-bottom:1px solid var(--rule); color:var(--ink-2); vertical-align:top }
+.mini td.mono{ font-family:"IBM Plex Mono",monospace; font-size:10.5px; white-space:nowrap }
+.mini tr:last-child td{ border-bottom:0 }
+.denied{ text-align:center; padding:30px 10px }
+.denied .code{ font-family:"IBM Plex Mono",monospace; font-size:2.2rem; color:var(--err); font-weight:500 }
+.denied p{ color:var(--ink-2); font-size:13.5px; margin:8px 0 0 }
+
+footer.end{ border-top:2px solid var(--ink); padding-top:18px; margin-top:36px; font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:8px 28px }
+@media (prefers-reduced-motion: reduce){ .stage{ transition:none } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="masthead">
+    <p class="eyebrow">Mood Tracker &middot; companion to the README</p>
+    <h1>Mood Tracker Data Flow</h1>
+    <p class="standfirst">Step through both journeys &mdash; a team member logging a mood, and an admin reading the log &mdash; and watch where each piece of data actually lives at every moment: the browser, the request, the middleware, the service, the database, the response.</p>
+    <div class="facts">
+      <span><b>Participant</b> identified by an HttpOnly cookie, never authenticated</span>
+      <span><b>Admin</b> cookie-scheme login, role-based authorisation</span>
+      <span><b>Team clock</b> Australia/Melbourne</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="tabs" role="tablist" aria-label="Journey">
+      <button class="tab" role="tab" id="tab-p" aria-selected="true" data-flow="participant">Team member (non-admin)</button>
+      <button class="tab" role="tab" id="tab-a" aria-selected="false" data-flow="admin">Admin</button>
+    </div>
+    <div class="stepnav">
+      <button class="nb" id="prev" type="button" aria-label="Previous step">&larr; Prev</button>
+      <span class="stepcount" id="count">1 / 8</span>
+      <button class="nb" id="next" type="button" aria-label="Next step">Next &rarr;</button>
+    </div>
+  </div>
+  <ol class="steplist" id="steplist"></ol>
+
+  <div class="stephead">
+    <h2 id="title"></h2>
+    <p id="narrative"></p>
+  </div>
+
+  <div class="sim">
+    <section class="pane ui" aria-label="What the user sees">
+      <h3>What the user sees</h3>
+      <div class="wire" id="ui"></div>
+    </section>
+    <section class="pane" aria-label="Where the data is">
+      <h3>Where the data is &mdash; request path, top to bottom</h3>
+      <ol class="pipe" id="pipe"></ol>
+      <div class="legend">
+        <span class="l-active">touched this step</span>
+        <span class="l-holds">data lives here now</span>
+        <span class="l-err">refused</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="where">
+    <span class="tag">Where is the data right now</span>
+    <p id="where"></p>
+  </div>
+
+  <footer class="end">
+    <span>Mood Tracker &mdash; data flow simulator</span>
+    <span>Use &larr; &rarr; keys to step</span>
+    <span>Times shown: UTC in storage, AEST (+10) on screen</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- shared data ---------- */
+  var LABELS = { 1:'Not good at all', 2:'A bit “meh”', 3:'Pretty good', 4:'Feeling great' };
+  var PID  = '8f3c1a2e-5d7b-4e9a-b2c1-0f6d3a8e7c21';
+  var PIDs = '8f3c…7c21';
+  var PID2 = '2d91f0a3-6c4e-4b18-9a5d-7e2b1c9fe4af';
+  var PID2s= '2d91…e4af';
+  var COMMENT = 'Release went out clean this morning. Standup was short for once.';
+
+  var seed = [
+    { id:1, pid:'a3f9…4c1', rating:1, comment:'Third production incident this week.', date:'2026-09-22', created:'2026-09-22 07:40:00' },
+    { id:2, pid:'7b02…9de', rating:2, comment:'Still blocked on the vendor API keys.', date:'2026-09-23', created:'2026-09-22 22:51:00' },
+    { id:3, pid:'c14e…220', rating:4, comment:null, date:'2026-09-23', created:'2026-09-22 22:32:00' }
+  ];
+  var row4 = { id:4, pid:PIDs, rating:3, comment:COMMENT, date:'2026-09-23', created:'2026-09-22 23:14:05' };
+  var row5 = { id:5, pid:PID2s, rating:2, comment:'Second thoughts.', date:'2026-09-23', created:'2026-09-23 01:02:00' };
+
+  var STAGES = [
+    { k:'browser',    label:'Browser',        sub:'cookie jar · component state' },
+    { k:'request',    label:'HTTP request',   sub:'what leaves the browser' },
+    { k:'nginx',      label:'nginx :4200',    sub:'static files · /api proxy → web:8080' },
+    { k:'middleware', label:'Middleware',     sub:'participant cookie · auth handler' },
+    { k:'controller', label:'Controller',     sub:'binding · validation' },
+    { k:'service',    label:'Service',        sub:'the one rule · team clock' },
+    { k:'ef',         label:'EF Core',        sub:'the SQL that runs' },
+    { k:'db',         label:'MySQL',          sub:'mood_entries' },
+    { k:'response',   label:'HTTP response',  sub:'what comes back' }
+  ];
+
+  /* ---------- helpers for pipeline text ---------- */
+  function hi(s){ return '<span class="hi">'+s+'</span>'; }
+  function bad(s){ return '<span class="bad">'+s+'</span>'; }
+  function good(s){ return '<span class="good">'+s+'</span>'; }
+  function dim(s){ return '<span class="dim">'+s+'</span>'; }
+
+  /* ---------- UI mocks ---------- */
+  function face(m, cls){
+    var mouth = { 1:'M7.6 16.2 Q12 11.6 16.4 16.2', 2:'M8 15.2 H16', 3:'M8 14.4 Q12 17.2 16 14.4', 4:'M7.2 13.4 Q12 19 16.8 13.4' }[m];
+    return '<svg class="face m'+m+(cls?' '+cls:'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="15" cy="10" r="1.1" fill="currentColor" stroke="none"></circle><path d="'+mouth+'" stroke-linecap="round"></path></svg>';
+  }
+  function chip(m){ return '<span class="chip m'+m+'">'+face(m)+'<span>'+LABELS[m]+'</span></span>'; }
+  function opts(sel){
+    var h = '<div class="opts">';
+    for (var m=1;m<=4;m++){
+      h += '<div class="opt'+(sel===m?' sel':'')+'">'+face(m)+LABELS[m]+(sel===m?'<span class="check">selected</span>':'')+'</div>';
+    }
+    return h+'</div>';
+  }
+  function frame(url, body, label){
+    return '<div class="wire-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="wire-url">'+url+'</span></div>'
+         + '<div class="wire-body">'+body+'</div>'
+         + '<div class="wire-label">'+label+'</div>';
+  }
+  var UI = {
+    loading: function(){ return frame('localhost:4200/',
+      '<div class="skel w60"></div><div class="skel w40"></div><div class="skel tall"></div><div class="skel tall"></div><div class="skel tall"></div><div class="skel tall"></div>',
+      'first paint &mdash; waiting on /api/moods/today'); },
+    formA: function(){ return frame('localhost:4200/',
+      '<p class="mt-h">How are you feeling today?</p><p class="mt-sub">Wednesday, 23 September</p>'+opts(null)+
+      '<div class="ta">Anything you’d like to add? (optional)</div><div class="counter"><span>Optional</span><span>0 / 500</span></div><div class="btn disabled">Log today’s mood</div>',
+      'form rendered &mdash; nothing chosen yet'); },
+    formB: function(){ return frame('localhost:4200/',
+      '<p class="mt-h">How are you feeling today?</p><p class="mt-sub">Wednesday, 23 September</p>'+opts(3)+
+      '<div class="ta filled">'+COMMENT+'</div><div class="counter"><span>Optional</span><span>61 / 500</span></div><div class="btn primary">Log today’s mood</div>',
+      'chosen &mdash; submit enabled'); },
+    lockedC: function(){ return frame('localhost:4200/',
+      '<p class="mt-h">You’re all set for today</p><p class="mt-sub">Wednesday, 23 September</p><div class="locked">'+chip(3)+'<p class="qt">“'+COMMENT+'”</p><p class="stamp">Logged 09:14 AEST</p></div><p class="hintline">Next check-in opens tomorrow morning.</p>',
+      'locked view'); },
+    errorD: function(){ return frame('localhost:4200/',
+      '<p class="mt-h">You’re all set for today</p><p class="mt-sub">Wednesday, 23 September</p><div class="alert"><span class="bang">!</span><span>You’ve already logged your mood for today. Come back tomorrow.</span></div><div class="locked">'+chip(3)+'<p class="qt">“'+COMMENT+'”</p><p class="stamp">Logged 09:14 AEST</p></div>',
+      '409 &mdash; error banner over the locked view'); },
+    lockedC2: function(){ return frame('localhost:4200/',
+      '<p class="mt-h">You’re all set for today</p><p class="mt-sub">Wednesday, 23 September</p><div class="locked">'+chip(2)+'<p class="qt">“Second thoughts.”</p><p class="stamp">Logged 11:02 AEST</p></div><p class="hintline">Next check-in opens tomorrow morning.</p>',
+      'locked view &mdash; as a brand-new participant'); },
+    gate: function(err){ return frame('localhost:4200/admin',
+      '<p class="mt-h">Admin sign-in</p><p class="small">This page lists every mood entry. Enter the admin password to continue.</p>'+
+      (err?'<div class="alert"><span class="bang">!</span><span>That password isn’t right.</span></div>':'')+
+      '<div class="field'+(err?' err':'')+'">'+(err?'wrong-guess':'••••••••••')+'</div><div class="btn primary">Sign in</div>',
+      err?'401 from /api/admin/login':'gate &mdash; no admin cookie'); },
+    gateOk: function(){ return frame('localhost:4200/admin',
+      '<p class="mt-h">Admin sign-in</p><p class="small">Signing you in…</p><div class="field">••••••••••</div><div class="btn disabled">Signing in…</div>',
+      '204 &mdash; ticket cookie received, redirecting'); },
+    adminList: function(){
+      var rows = [row5,row4,seed[1],seed[2],seed[0]];
+      var h = '<div class="admin-head"><p class="mt-h" style="margin:0">All mood entries</p><span class="wire-url">5 entries &middot; newest first</span></div><div class="minwrap"><table class="mini"><thead><tr><th>Logged</th><th>Mood</th><th>Comment</th><th>Who</th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        var t = toAest(r.created);
+        h += '<tr><td class="mono">'+t+'</td><td>'+chip(r.rating)+'</td><td>'+(r.comment||'—')+'</td><td class="mono">'+r.pid+'</td></tr>';
+      });
+      return frame('localhost:4200/admin', h+'</tbody></table></div>', 'admin list &mdash; server order, never re-sorted'); },
+    adminDenied: function(){ return frame('localhost:8080/api/admin/moods',
+      '<div class="denied"><div class="code">401</div><p>Unauthorized</p><p class="small" style="margin-top:14px">No body. No rows. The participant cookie was present and ignored.</p></div>',
+      'raw API hit with only the participant cookie'); }
+  };
+  function toAest(utc){ // 'YYYY-MM-DD HH:MM:SS' UTC -> 'DD Mon · HH:MM'
+    var d = new Date(utc.replace(' ','T')+'Z'); d = new Date(d.getTime()+10*3600*1000);
+    var mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];
+    var p = function(n){ return (n<10?'0':'')+n; };
+    return d.getUTCDate()+' '+mon+' · '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
+  }
+
+  /* ---------- db renderer ---------- */
+  function dbTable(rows, opt){
+    opt = opt||{};
+    var h = '<div class="dbwrap"><table class="db"><thead><tr><th>id</th><th>participant_id</th><th>rating</th><th>comment</th><th>entry_date</th><th>created_at_utc</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      var cls = (opt.hit && opt.hit.indexOf(r.id)>=0) ? ' class="hit"' : ((opt.fresh && opt.fresh.indexOf(r.id)>=0) ? ' class="new"' : '');
+      h += '<tr'+cls+'><td>'+r.id+'</td><td>'+r.pid+'</td><td class="r'+r.rating+'">'+r.rating+'</td><td class="c">'+(r.comment===null?'<span class="dim">NULL</span>':r.comment)+'</td><td>'+r.date+'</td><td>'+r.created+'</td></tr>';
+    });
+    h += '</tbody></table></div>';
+    if (opt.note) h += '<div class="dbnote'+(opt.noteTone?' '+opt.noteTone:'')+'">'+opt.note+'</div>';
+    return h;
+  }
+  var DB3 = seed, DB4 = seed.concat([row4]), DB5 = seed.concat([row4,row5]);
+
+  /* ---------- steps ---------- */
+  var FLOWS = {
+    participant: [
+      {
+        title:'First visit — the API hands out an identity',
+        narrative:'The page loads and immediately asks the API whether today is already logged. There is no cookie yet, so the middleware mints one on the way through. Nothing about this person exists anywhere until the response arrives.',
+        ui:'loading',
+        stages:{
+          browser:{ active:1, text:'cookie jar: '+dim('(empty)')+'\nlocalStorage: '+dim('(unused — identity is never client-side)') },
+          request:{ active:1, text:'GET /api/moods/today HTTP/1.1\nHost: localhost:4200\n'+dim('(no Cookie header)') },
+          nginx:{ active:1, text:'location /api/ → proxy_pass http://web:8080/api/' },
+          middleware:{ active:1, holds:1, text:'ParticipantCookieMiddleware\nno mt_pid → Guid.NewGuid()\n= '+hi(PID)+'\nParticipantContext.ParticipantId = ↑  (scoped service)\nResponse.Cookies.Append("mt_pid", …)' },
+          controller:{ active:1, text:'MoodsController.GetToday()\nparticipantId ← HttpContext.Items' },
+          service:{ active:1, text:'MoodService.GetTodayAsync(participantId)\nentryDate = clock.Today  (ITeamClock, Australia/Melbourne)\n= '+hi('2026-09-23')+'  (09:11 AEST)' },
+          ef:{ active:1, text:'SELECT … FROM mood_entries\nWHERE participant_id = \''+PIDs+'\'\n  AND entry_date = \'2026-09-23\'\n→ '+dim('0 rows') },
+          db:{ active:1, rows:DB3, note:'no row for '+PIDs+' — three rows from other team members already exist' },
+          response:{ active:1, holds:1, text:'HTTP/1.1 200 OK\n'+hi('Set-Cookie: mt_pid='+PID+';\n  HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000')+'\n\n{ "logged": false, "entry": null,\n  "today": "2026-09-23", "timeZone": "Australia/Melbourne" }' }
+        },
+        where:'The identity is in flight — created by middleware, travelling back inside Set-Cookie. Mood data: nowhere. The database has three rows, none of them about this person.'
+      },
+      {
+        title:'The form renders — identity lands in the cookie jar',
+        narrative:'The response said logged: false, so the component renders the form. The cookie is stored by the browser and is HttpOnly, so the Angular code cannot read it, and does not need to.',
+        ui:'formA',
+        stages:{
+          browser:{ active:1, holds:1, text:'cookie jar:\n  '+hi('mt_pid = '+PID)+'\n  '+dim('(HttpOnly — invisible to document.cookie)')+'\ncomponent state: { rating: null, comment: "" }' },
+          db:{ rows:DB3 }
+        },
+        where:'Identity: browser cookie jar only. The server has forgotten the GUID it minted — it will only learn it again from the next request. There is still nothing about this person in the database.'
+      },
+      {
+        title:'A mood is chosen — the data exists only in memory',
+        narrative:'The person picks “Pretty good” and types a comment. All of that is the value of an Angular reactive form. No request has been made; a refresh here would lose it.',
+        ui:'formB',
+        stages:{
+          browser:{ active:1, holds:1, text:'cookie jar: mt_pid = '+PIDs+'\ncomponent state (reactive form value):\n'+hi('{ rating: 3,\n  comment: "'+COMMENT+'" }') },
+          db:{ rows:DB3 }
+        },
+        where:'The mood lives in the browser’s memory as a form value, and nowhere else. The 61-character count and the enabled button are derived from it.'
+      },
+      {
+        title:'Submit — the row is written',
+        narrative:'The POST carries the cookie and the form value. The service computes the team-local date, checks nothing exists for it, and inserts. Watch the date: UTC still says the 22nd, the team clock says the 23rd, and the row stores the 23rd.',
+        ui:'lockedC',
+        stages:{
+          browser:{ active:1, text:'cookie jar: mt_pid = '+PIDs+'\ncomponent: submitting = true  '+dim('(button disabled)') },
+          request:{ active:1, text:'POST /api/moods HTTP/1.1\n'+hi('Cookie: mt_pid='+PID)+'\nContent-Type: application/json\n\n{ "rating": 3,\n  "comment": "'+COMMENT+'" }' },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'mt_pid present → ParticipantContext = '+PIDs+'\n'+dim('(no new cookie issued)') },
+          controller:{ active:1, text:'MoodsController.Create(CreateMoodRequest)\n[ApiController] validation:\n  rating ∈ 1..4  '+good('✓')+'\n  comment.Length ≤ 500  '+good('✓') },
+          service:{ active:1, text:'MoodService.CreateAsync(participantId, rating, comment)\nnowUtc    = 2026-09-22T23:14:05Z\nteamNow   = 2026-09-23 09:14 AEST (+10)\nentryDate = '+hi('2026-09-23')+'  ← team-local, not UTC\nread-check: 0 rows → proceed\ncomment.Trim() → non-empty, keep' },
+          ef:{ active:1, text:'INSERT INTO mood_entries\n  (participant_id, rating, comment, entry_date, created_at_utc)\nVALUES (\''+PIDs+'\', 3, \'Release went…\',\n        \'2026-09-23\', \'2026-09-22 23:14:05.000000\')' },
+          db:{ active:1, holds:1, rows:DB4, fresh:[4], note:'UNIQUE ux_participant_day ('+PIDs+', 2026-09-23): first time seen → accepted, id 4', noteTone:'good' },
+          response:{ active:1, text:'HTTP/1.1 201 Created\nLocation: /api/moods/4\n\n{ "id": 4, "rating": 3,\n  "comment": "Release went…",\n  "entryDate": "2026-09-23",\n  "createdAtUtc": "2026-09-22T23:14:05Z" }' }
+        },
+        where:'The mood is now durable in MySQL as row 4. A copy is in the 201 body, which the component renders as the locked view without a second request.'
+      },
+      {
+        title:'Refresh — the locked view comes from the database',
+        narrative:'The page reloads and component state is gone. The first call finds row 4 by (participant, date) and answers logged: true with the entry, so the form is never rendered.',
+        ui:'lockedC',
+        stages:{
+          browser:{ active:1, text:'cookie jar: mt_pid = '+PIDs+'\ncomponent state: '+dim('(reset by reload)') },
+          request:{ active:1, text:'GET /api/moods/today\nCookie: mt_pid='+PID },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'mt_pid → ParticipantContext' },
+          controller:{ active:1, text:'MoodsController.GetToday()' },
+          service:{ active:1, text:'entryDate = 2026-09-23\nlookup (pid, entryDate)' },
+          ef:{ active:1, text:'SELECT … WHERE participant_id=\''+PIDs+'\'\n  AND entry_date=\'2026-09-23\'\n→ '+good('1 row (id 4)')+'  via ux_participant_day' },
+          db:{ active:1, holds:1, rows:DB4, hit:[4] },
+          response:{ active:1, text:'200 OK\n{ "logged": true,\n  "entry": { "id": 4, "rating": 3, "comment": "…",\n             "entryDate": "2026-09-23", "createdAtUtc": "…" },\n  "today": "2026-09-23", "timeZone": "Australia/Melbourne" }' }
+        },
+        where:'MySQL row 4, read back through the unique index. The screen is a rendering of the database, not of anything remembered in the browser.'
+      },
+      {
+        title:'A second attempt — refused by the read-check',
+        narrative:'The POST is replayed from devtools with a different rating. The service finds row 4 before touching the insert and returns Conflict. The rating 4 never reaches the database.',
+        ui:'errorD',
+        stages:{
+          browser:{ active:1, text:'cookie jar: mt_pid = '+PIDs+'\n'+dim('(request replayed from devtools / a second tab)') },
+          request:{ active:1, text:'POST /api/moods\nCookie: mt_pid='+PID+'\n\n{ "rating": 4, "comment": null }' },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'mt_pid → ParticipantContext' },
+          controller:{ active:1, text:'validation '+good('✓') },
+          service:{ active:1, tone:'err', text:'entryDate = 2026-09-23\nread-check: '+bad('1 row (id 4) → return Conflict')+'\n'+dim('(insert never attempted)') },
+          ef:{ active:1, text:'SELECT … → 1 row\n'+dim('(no INSERT)') },
+          db:{ active:1, holds:1, rows:DB4, hit:[4], note:'unchanged — still exactly one row for '+PIDs+' on 2026-09-23' },
+          response:{ active:1, tone:'err', text:'HTTP/1.1 '+bad('409 Conflict')+'\nContent-Type: application/problem+json\n\n{ "title": "Mood already logged",\n  "status": 409,\n  "detail": "You\'ve already logged your mood for today. Come back tomorrow.",\n  "entryDate": "2026-09-23" }' }
+        },
+        where:'Still exactly one row. The rating 4 existed only in the request body and is gone. The client shows the error and re-renders the same locked view from the entry it already had.'
+      },
+      {
+        title:'The race — rewind step 4 and submit from two tabs at once',
+        narrative:'Both requests pass the read-check because neither insert is visible yet. Both reach INSERT. The unique index accepts one and rejects the other with MySQL error 1062; the API turns that into the same 409. The code was wrong twice; the constraint was right.',
+        ui:'errorD',
+        stages:{
+          browser:{ active:1, text:'tab A and tab B, same cookie jar\nboth click within 4 ms' },
+          request:{ active:1, text:'POST /api/moods  × 2\nCookie: mt_pid='+PID+'  '+dim('(both)') },
+          nginx:{ active:1, text:'→ web:8080  × 2' },
+          middleware:{ active:1, text:'mt_pid → ParticipantContext  × 2' },
+          controller:{ active:1, text:'validation '+good('✓')+'  × 2' },
+          service:{ active:1, tone:'warn', text:'A: read-check → 0 rows → proceed\nB: read-check → 0 rows → proceed   '+bad('← both pass')+'\n'+dim('neither insert has committed yet') },
+          ef:{ active:1, tone:'err', text:'A: INSERT … (\''+PIDs+'\', …, \'2026-09-23\')  → '+good('OK')+'\nB: INSERT … (\''+PIDs+'\', …, \'2026-09-23\')\n   → '+bad('MySqlException 1062')+' Duplicate entry\n     \''+PIDs+'-2026-09-23\' for key \'ux_participant_day\'\n   → DbUpdateException\n   → IDuplicateKeyDetector says yes → AlreadyLogged → 409' },
+          db:{ active:1, holds:1, rows:DB4, fresh:[4], note:'index accepted A, rejected B — one row, whichever request won', noteTone:'good' },
+          response:{ active:1, text:'A: '+good('201 Created')+'  { "id": 4, … }\nB: '+bad('409 Conflict')+'  (problem+json, same body as step 6)' }
+        },
+        where:'Exactly one row, whichever request won. This is why the constraint, not the service, is the enforcement point — and why the 1062 test runs against real MySQL.'
+      },
+      {
+        title:'The cookie is deleted — a new participant appears',
+        narrative:'The person clears cookies. The next request has no mt_pid, so the middleware mints a fresh identity that has never logged anything. They submit again and a second row is written. The invariant held perfectly; the identity-to-person link never existed.',
+        ui:'lockedC2',
+        stages:{
+          browser:{ active:1, holds:1, text:'cookie jar: '+dim('(cleared by the user)')+'\n→ next request carries no mt_pid\n→ middleware issues '+hi(PID2)+'\ncookie jar: mt_pid = '+PID2s },
+          request:{ active:1, text:'GET /api/moods/today  '+dim('(no cookie)')+'  → { logged: false }\nthen\nPOST /api/moods\nCookie: mt_pid='+PID2+'\n{ "rating": 2, "comment": "Second thoughts." }' },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'no mt_pid → new GUID '+PID2s+'\nthen: mt_pid present → ParticipantContext' },
+          controller:{ active:1, text:'validation '+good('✓') },
+          service:{ active:1, text:'read-check for ('+PID2s+', 2026-09-23): 0 rows → insert' },
+          ef:{ active:1, text:'INSERT … (\''+PID2s+'\', 2, \'Second thoughts.\',\n        \'2026-09-23\', \'2026-09-23 01:02:00\')' },
+          db:{ active:1, holds:1, rows:DB5, fresh:[5], hit:[4], note:'rows 4 and 5 are one human, two identities — the boundary the no-auth requirement draws', noteTone:'bad' },
+          response:{ active:1, text:'201 Created  { "id": 5, "rating": 2, … }' }
+        },
+        where:'Two rows for one person, both correct by the rule as stated. Turning identity into a person is what authentication does, and the brief said not to — the seam for it is one line where participant_id is read.'
+      }
+    ],
+
+    admin: [
+      {
+        title:'Open /admin — no session, so the gate',
+        narrative:'The route guard asks the API who the caller is. The participant cookie is sent automatically and ignored; there is no admin cookie, so the authorisation attribute challenges and the guard shows the sign-in gate.',
+        ui:'gate',
+        stages:{
+          browser:{ active:1, text:'cookie jar:\n  mt_pid = '+PIDs+'  '+dim('(participant — irrelevant here)')+'\n  '+dim('no mt_admin') },
+          request:{ active:1, text:'GET /api/admin/me\nCookie: mt_pid='+PID },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, tone:'err', text:'Cookie auth handler ("AdminCookie"):\n  no mt_admin → anonymous principal\n[Authorize(Roles = "Admin")] → '+bad('challenge') },
+          controller:{ text:dim('(never reached)') },
+          db:{ rows:DB5 },
+          response:{ active:1, tone:'err', text:'HTTP/1.1 '+bad('401 Unauthorized') }
+        },
+        where:'No admin data exists anywhere. The 401 becomes the sign-in gate on the client. Note that a valid participant identity was presented and counted for nothing — the two cookies are separate systems.'
+      },
+      {
+        title:'Wrong password — nothing issued',
+        narrative:'The login endpoint is the one anonymous route on the admin side. The password is compared in fixed time against configuration; a miss returns 401 with no cookie and the same response time as a near-miss.',
+        ui:'gateErr',
+        stages:{
+          browser:{ active:1, text:'gate form value: { password: "wrong-guess" }  '+dim('(memory)') },
+          request:{ active:1, text:'POST /api/admin/login\nContent-Type: application/json\n\n{ "password": "wrong-guess" }' },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'[AllowAnonymous] — no principal required' },
+          controller:{ active:1, tone:'err', text:'AdminController.Login\nCryptographicOperations.FixedTimeEquals(\n  input, config["Admin:Password"])\n→ '+bad('false') },
+          db:{ rows:DB5 },
+          response:{ active:1, tone:'err', text:bad('401 Unauthorized')+'\n'+dim('(no Set-Cookie; same timing whether 0 or 9 chars matched)') }
+        },
+        where:'Nothing stored, nothing issued, nothing logged about the attempt beyond a counter. The password came from configuration (Admin__Password), never from the database or the source tree.'
+      },
+      {
+        title:'Correct password — a signed ticket, not a session row',
+        narrative:'The comparison passes. The controller builds a ClaimsPrincipal with the Admin role and signs it in; the cookie handler serialises and encrypts that into a ticket using Data Protection. The server stores nothing — it can verify the ticket later because it holds the key.',
+        ui:'gateOk',
+        stages:{
+          browser:{ active:1, text:'gate form value: { password: "••••••••••" }' },
+          request:{ active:1, text:'POST /api/admin/login\n\n{ "password": "change-me-locally" }' },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'[AllowAnonymous]' },
+          controller:{ active:1, holds:1, text:'FixedTimeEquals → '+good('true')+'\nprincipal = new ClaimsPrincipal(\n  name: "admin", '+hi('role: "Admin"')+')\nawait HttpContext.SignInAsync("AdminCookie", principal)' },
+          ef:{ text:dim('(no database access — the ticket is self-contained)') },
+          db:{ rows:DB5 },
+          response:{ active:1, holds:1, text:'204 No Content\n'+hi('Set-Cookie: mt_admin=CfDJ8Nq3…')+'\n  '+dim('(Data-Protection-encrypted ticket: claims + expiry)')+'\n  HttpOnly; SameSite=Lax; Path=/; Expires=+8h' }
+        },
+        where:'The admin identity is an encrypted, signed ticket in the browser’s cookie jar. There is no session table and no admin user row — swapping in ASP.NET Identity later changes where the principal comes from, not any endpoint.'
+      },
+      {
+        title:'Load the list — newest first, from the index',
+        narrative:'Now both cookies travel. The auth handler decrypts the ticket into HttpContext.User, the role check passes, and the service asks for every row ordered by the exact instant it was created. The client renders that order and never re-sorts.',
+        ui:'adminList',
+        stages:{
+          browser:{ active:1, text:'cookie jar:\n  mt_pid   = '+PIDs+'\n  '+hi('mt_admin = CfDJ8Nq3…') },
+          request:{ active:1, text:'GET /api/admin/moods?page=1&pageSize=50\nCookie: mt_admin=CfDJ8Nq3…; mt_pid='+PIDs },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, text:'Cookie auth handler: decrypt ticket\n  → HttpContext.User  (role = Admin) '+good('✓')+'\n[Authorize(Roles = "Admin")] → allow' },
+          controller:{ active:1, text:'AdminMoodsController.List(page: 1, pageSize: 50)' },
+          service:{ active:1, text:'MoodService.ListAllAsync(page, pageSize)\n'+dim('(no participant filter — every row)')+'\nCOUNT(*), then one COUNT per rating (four),\nthen the ordered page' },
+          ef:{ active:1, text:'SELECT id, participant_id, rating, comment,\n       entry_date, created_at_utc\nFROM mood_entries\n'+hi('ORDER BY created_at_utc DESC')+'\nLIMIT 50 OFFSET 0\n→ 5 rows, via ix_created_at' },
+          db:{ active:1, holds:1, rows:DB5, hit:[1,2,3,4,5], note:'read in bulk; the database chooses the order, not the client' },
+          response:{ active:1, text:'200 OK\n{ "total": 5, "page": 1, "pageSize": 50,\n  "countsByRating": { "1": 1, "2": 2, "3": 1, "4": 1 },\n  "timeZone": "Australia/Melbourne",\n  "items": [\n    { "id": 5, "participantId": "'+PID2s+'", "rating": 2, … },\n    { "id": 4, "participantId": "'+PIDs+'", "rating": 3, … },\n    { "id": 2, … }, { "id": 3, … }, { "id": 1, … } ] }' }
+        },
+        where:'Every row leaves MySQL once, already ordered. Participant ids are shortened on screen only — the full GUIDs are in the response, and they identify browsers, not people.'
+      },
+      {
+        title:'A participant hits the admin endpoint directly',
+        narrative:'Someone pastes the API URL into a tab that has only the participant cookie. The auth handler finds no ticket, the attribute refuses, and nothing leaves the database. Holding a participant identity grants nothing on the admin side.',
+        ui:'adminDenied',
+        stages:{
+          browser:{ active:1, text:'cookie jar: mt_pid = '+PIDs+'  '+dim('only') },
+          request:{ active:1, text:'GET /api/admin/moods\nCookie: mt_pid='+PID },
+          nginx:{ active:1, text:'→ web:8080' },
+          middleware:{ active:1, tone:'err', text:'no mt_admin → anonymous\n[Authorize(Roles = "Admin")] → '+bad('refuse') },
+          controller:{ text:dim('(never reached)') },
+          db:{ rows:DB5, note:'no query ran' },
+          response:{ active:1, tone:'err', text:bad('401 Unauthorized')+'\n'+dim('(no body, no rows)') }
+        },
+        where:'The mood data stayed in MySQL. The gate is enforced by the attribute on the endpoint, not by the Angular guard — the guard is a convenience, the attribute is the control.'
+      }
+    ]
+  };
+
+  /* ---------- state & render ---------- */
+  var flow = 'participant', idx = 0;
+  try {
+    var saved = JSON.parse(localStorage.getItem('mt-dataflow')||'null');
+    if (saved && FLOWS[saved.flow]) { flow = saved.flow; idx = Math.min(saved.idx|0, FLOWS[flow].length-1); }
+  } catch(e){}
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function render(){
+    var steps = FLOWS[flow], s = steps[idx];
+    document.querySelectorAll('.tab').forEach(function(t){ t.setAttribute('aria-selected', t.dataset.flow===flow ? 'true':'false'); });
+
+    var list = '';
+    steps.forEach(function(st,i){ list += '<li><button type="button" data-i="'+i+'"'+(i===idx?' aria-current="step"':'')+'><span class="n">'+(i+1)+'</span>'+st.title.split(' — ')[0]+'</button></li>'; });
+    $('steplist').innerHTML = list;
+
+    $('count').textContent = (idx+1)+' / '+steps.length;
+    $('prev').disabled = idx===0;
+    $('next').disabled = idx===steps.length-1;
+    $('title').textContent = s.title;
+    $('narrative').textContent = s.narrative;
+
+    var uiKey = s.ui, uiHtml;
+    if (uiKey==='gateErr') uiHtml = UI.gate(true);
+    else if (uiKey==='gate') uiHtml = UI.gate(false);
+    else uiHtml = UI[uiKey]();
+    $('ui').innerHTML = uiHtml;
+
+    var pipe = '';
+    STAGES.forEach(function(st){
+      var d = s.stages[st.k] || {};
+      var cls = 'stage' + (d.active?' active':'') + (d.holds?' holds':'') + (d.tone?' '+d.tone:'');
+      pipe += '<li class="'+cls+'"><div class="st-head"><span class="st-label">'+st.label+'</span><span class="st-sub">'+st.sub+'</span><span class="st-mark">data lives here</span></div>';
+      if (st.k==='db') {
+        pipe += dbTable(d.rows||DB3, d);
+      } else if (d.text) {
+        pipe += '<pre class="st-body">'+d.text+'</pre>';
+      } else {
+        pipe += '<pre class="st-body empty">not involved in this step</pre>';
+      }
+      pipe += '</li>';
+    });
+    $('pipe').innerHTML = pipe;
+    $('where').textContent = s.where;
+
+    try { localStorage.setItem('mt-dataflow', JSON.stringify({flow:flow, idx:idx})); } catch(e){}
+  }
+
+  function go(i){ idx = Math.max(0, Math.min(FLOWS[flow].length-1, i)); render(); window.scrollTo({top: $('title').getBoundingClientRect().top + window.scrollY - 16, behavior:'auto'}); }
+
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){ flow = t.dataset.flow; idx = 0; render(); });
+  });
+  $('prev').addEventListener('click', function(){ go(idx-1); });
+  $('next').addEventListener('click', function(){ go(idx+1); });
+  $('steplist').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-i]'); if (b) go(+b.dataset.i);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA') return;
+    if (e.key==='ArrowRight') go(idx+1);
+    if (e.key==='ArrowLeft') go(idx-1);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

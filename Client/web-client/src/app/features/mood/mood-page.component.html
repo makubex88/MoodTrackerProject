@@ -1,0 +1,81 @@
+<section class="card mood-card">
+  @switch (state) {
+    @case ('loading') {
+      <p class="muted" role="status">Checking today&rsquo;s entry&hellip;</p>
+    }
+
+    @case ('unavailable') {
+      <h1 class="title">Mood Tracker</h1>
+      <div class="alert" role="alert">We couldn&rsquo;t reach the server. Check your connection and try again.</div>
+      <button type="button" class="btn primary" (click)="load()">Try again</button>
+    }
+
+    @case ('form') {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <h1 class="title">How are you feeling today?</h1>
+        <p class="subtitle">{{ today | date: 'EEEE, d MMMM' }}</p>
+
+        <fieldset class="options">
+          <legend class="sr-only">Choose the option that best describes your mood</legend>
+          @for (o of options; track o.value) {
+            <label class="opt" [class.sel]="form.controls.rating.value === o.value">
+              <input type="radio" class="sr-radio" formControlName="rating" [value]="o.value" />
+              <app-mood-face [rating]="o.value" />
+              <span class="opt-label">{{ o.label }}</span>
+              @if (form.controls.rating.value === o.value) {
+                <span class="opt-check">selected</span>
+              }
+            </label>
+          }
+        </fieldset>
+
+        <label class="field-label" for="comment">
+          Anything you&rsquo;d like to add? <span class="muted">(optional)</span>
+        </label>
+        <textarea
+          id="comment"
+          class="textarea"
+          formControlName="comment"
+          rows="3"
+          [attr.maxlength]="maxComment"
+          placeholder="A line about your day"></textarea>
+        <div class="counter" [class.over]="commentLength > maxComment">
+          <span>Optional</span>
+          <span aria-live="polite">{{ commentLength }} / {{ maxComment }}</span>
+        </div>
+
+        @if (error) {
+          <div class="alert" role="alert">{{ error }}</div>
+        }
+
+        <button type="submit" class="btn primary" [disabled]="form.invalid || submitting">
+          {{ submitting ? 'Saving…' : 'Log today’s mood' }}
+        </button>
+      </form>
+    }
+
+    @case ('locked') {
+      <h1 class="title">You&rsquo;re all set for today</h1>
+      <p class="subtitle">{{ today | date: 'EEEE, d MMMM' }}</p>
+
+      @if (error) {
+        <div class="alert" role="alert">{{ error }}</div>
+      }
+
+      @if (entry; as e) {
+        <div class="locked">
+          <span class="chip" [attr.data-rating]="e.rating">
+            <app-mood-face [rating]="e.rating" />
+            <span>{{ label(e.rating) }}</span>
+          </span>
+          @if (e.comment) {
+            <p class="quote">&ldquo;{{ e.comment }}&rdquo;</p>
+          }
+          <p class="stamp">Logged {{ e.createdAtUtc | teamTime: timeZone : 'time' }}</p>
+        </div>
+      }
+
+      <p class="hint">Next check-in opens tomorrow morning.</p>
+    }
+  }
+</section>

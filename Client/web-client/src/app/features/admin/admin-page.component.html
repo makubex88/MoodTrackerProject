@@ -1,0 +1,73 @@
+<section class="card admin-card">
+  <div class="admin-head">
+    <div>
+      <h1 class="title">All mood entries</h1>
+      @if (page; as p) {
+        <p class="subtitle">
+          {{ p.total }} {{ p.total === 1 ? 'entry' : 'entries' }} &middot; newest first
+          @if (p.total > p.items.length) {
+            &middot; showing the first {{ p.items.length }}
+          }
+        </p>
+      }
+    </div>
+    <button type="button" class="btn ghost" (click)="signOut()">Sign out</button>
+  </div>
+
+  @switch (state) {
+    @case ('loading') {
+      <p class="muted" role="status">Loading entries&hellip;</p>
+    }
+
+    @case ('unavailable') {
+      <div class="alert" role="alert">We couldn&rsquo;t load the entries. Check your connection and try again.</div>
+      <button type="button" class="btn primary" (click)="load()">Try again</button>
+    }
+
+    @case ('ready') {
+      @if (page; as p) {
+        <div class="stats" aria-label="Totals by mood">
+          @for (o of options; track o.value) {
+            <div class="stat" [attr.data-rating]="o.value">
+              <div class="stat-value">{{ count(o.value) }}</div>
+              <div class="stat-label">{{ o.label }}</div>
+            </div>
+          }
+        </div>
+
+        @if (p.items.length === 0) {
+          <p class="muted">No moods have been logged yet.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="entries">
+              <thead>
+                <tr>
+                  <th scope="col">Logged</th>
+                  <th scope="col">Mood</th>
+                  <th scope="col">Comment</th>
+                  <th scope="col">Participant</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (e of p.items; track e.id) {
+                  <tr>
+                    <td class="mono">{{ e.createdAtUtc | teamTime: p.timeZone : 'datetime' }}</td>
+                    <td>
+                      <span class="chip" [attr.data-rating]="e.rating">
+                        <app-mood-face [rating]="e.rating" />
+                        <span>{{ label(e.rating) }}</span>
+                      </span>
+                    </td>
+                    <td class="comment">{{ e.comment ?? '—' }}</td>
+                    <td class="mono" [title]="e.participantId">{{ shortId(e.participantId) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small">Times are shown in {{ p.timeZone }}.</p>
+        }
+      }
+    }
+  }
+</section>

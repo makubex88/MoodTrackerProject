@@ -1,0 +1,21 @@
+@host = http://localhost:4200
+
+### Has this browser logged today? (issues the mt_pid cookie on first call)
+GET {{host}}/api/moods/today
+Accept: application/json
+
+### Log today's mood (201 first time, 409 the second time on the same cookie)
+POST {{host}}/api/moods
+Content-Type: application/json
+
+{ "rating": 3, "comment": "Release went out clean this morning." }
+
+### Admin sign-in (sets the mt_admin ticket cookie)
+POST {{host}}/api/admin/login
+Content-Type: application/json
+
+{ "password": "change-me-locally" }
+
+### Admin list, newest first
+GET {{host}}/api/admin/moods?page=1&pageSize=50
+Accept: application/json
